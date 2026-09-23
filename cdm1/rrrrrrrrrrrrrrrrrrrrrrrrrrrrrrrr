@@ -1,0 +1,200 @@
+<?php
+include("config.php");
+
+// Get route ID from URL
+$routeId = $_GET['route'] ?? 1;
+
+// Query route details
+$sql = "SELECT * FROM routes WHERE id = $routeId";
+$res = $conn->query($sql);
+$route = $res->num_rows > 0 ? $res->fetch_assoc() : null;
+
+// construct image filename with several fallbacks and pick first existing
+$imageFile = 'images/default-route.jpg';
+$candidates = [];
+
+if ($route && !empty($route['bus_number'])) {
+    $bus = $route['bus_number'];
+    // common variants
+    $candidates[] = "images/Route{$routeId}-{$bus}.jpg";
+    $candidates[] = "images/Route{$routeId}-" . ltrim($bus, '0') . ".jpg";
+    $candidates[] = "images/Route" . str_pad($routeId, 2, '0', STR_PAD_LEFT) . "-{$bus}.jpg";
+    $candidates[] = "images/route{$routeId}-{$bus}.jpg";
+    $candidates[] = "images/route-".str_pad($routeId,2,'0',STR_PAD_LEFT).".jpg";
+    $candidates[] = "images/route{$routeId}.jpg";
+    $candidates[] = "images/Route{$routeId}.jpg";
+    $candidates[] = "images/Route{$routeId}-01.jpg"; // optional example
+} else {
+    // if no bus_number, try generic route images
+    $candidates[] = "images/route-".str_pad($routeId,2,'0',STR_PAD_LEFT).".jpg";
+    $candidates[] = "images/route{$routeId}.jpg";
+}
+
+foreach ($candidates as $c) {
+    if (file_exists(__DIR__ . '/' . $c)) {
+        $imageFile = $c;
+        break;
+    }
+}
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Route Details</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root { color-scheme: light; }
+    body {
+      background-color: #f8f9fa;
+      font-family: 'Segoe UI', sans-serif;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    /* Present the route box sized to A4 width for printing/layout */
+    .route-box {
+      width: 210mm;               /* A4 width */
+      max-width: 100%;
+      margin: 24px auto;
+      background: white;
+      padding: 12mm;              /* use mm for print consistency */
+      border-radius: 6px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+      box-sizing: border-box;
+    }
+
+    .route-box h2 {
+      color: #0400ffff;
+      margin-bottom: 12px;
+      font-size: 1.25rem;
+    }
+
+    .route-box .label {
+      font-weight: 600;
+      color: #555;
+    }
+
+    /* Make the image fit the printable A4 area while preserving aspect ratio.
+       On screen the image will be scaled to A4 width; when printing it will
+       not exceed the A4 page height. */
+    .route-img {
+      display:block;
+      width: 100%;                /* fill A4 content width */
+      height: auto;
+      max-height: calc(297mm - 40mm); /* A4 height minus header/foot/margins */
+      object-fit: contain;
+      border-radius: 6px;
+      margin-bottom: 12px;
+    }
+
+    /* Print-friendly page setup */
+    @page {
+      size: A4 portrait;
+      margin: 10mm;
+    }
+    @media print {
+      body { background: #fff; }
+      .route-box { box-shadow: none; border-radius: 0; padding: 8mm; width: auto; }
+      .route-img { max-height: calc(297mm - 30mm); }
+    }
+
+    /* Top bar styles */
+    .top-bar {
+      background: #fff;
+      border-bottom: 1px solid #e6e6e6;
+      padding: 8px 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+    }
+    .top-bar .container-top {
+      display:flex;
+      align-items:center;
+      gap:12px;
+      max-width:1140px;
+      margin:0 auto;
+    }
+    .top-logo { width:120px; height:auto; border-radius:4px; }
+    .top-title h1 { margin:0; font-size:1rem; font-weight:700; color:#222; }
+    .top-title .muted { margin:0; font-size:0.85rem; color:#666; }
+
+    /* route tabs under the banner */
+    .route-tabs {
+      display:flex;
+      gap:6px;
+      max-width:1140px;
+      margin:8px auto 0;
+      padding:6px 12px;
+      overflow:auto;
+    }
+    .route-tabs a {
+      display:inline-block;
+      padding:6px 10px;
+      background:#1f66a4;
+      color:#fff;
+      text-decoration:none;
+      border-radius:4px;
+      font-size:0.9rem;
+    }
+    .route-tabs a:hover { background:#174f7b; }
+    .route-tabs a.active { background:#f7d64a; color:#000; font-weight:700; }
+    @media (max-width:700px){
+      .top-logo { width:88px; }
+      .top-title h1 { font-size:0.95rem; }
+      .route-tabs { gap:4px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top bar: banner + route tabs -->
+  <header class="top-bar" role="banner">
+    <div class="container-top">
+      <img src="images/college_banner.png" alt="GSSS Banner" class="top-logo" onerror="this.onerror=null;this.src='images/default-banner.png'">
+      <div class="top-title">
+        <h1>GSSS Institute of Engineering and Technology for Women</h1>
+        <p class="muted">Bus Routes — select a route below</p>
+      </div>
+    </div>
+
+    <nav class="route-tabs" aria-label="Route navigation">
+      <?php
+        $maxRoutes = 17; // change if you have more routes
+        for ($i = 1; $i <= $maxRoutes; $i++) {
+          $num = str_pad($i, 2, '0', STR_PAD_LEFT);
+          $isActive = ($i == intval($routeId)) ? 'active' : '';
+          echo "<a href=\"?route={$i}\" class=\"{$isActive}\">{$num}</a>";
+        }
+      ?>
+    </nav>
+  </header>
+
+<div class="route-box">
+  <h2>Route No: <?php echo str_pad($routeId, 2, '0', STR_PAD_LEFT); ?></h2>
+
+  <?php if ($route): ?>
+    <img src="<?php echo $imageFile; ?>"
+         alt="Route <?php echo $routeId; ?>"
+         class="img-fluid route-img"
+         onerror="this.onerror=null;this.src='images/default-route.jpg';">
+    <p><span class="label">Stops:</span> <?php echo $route['stops']; ?></p>
+    <p><span class="label">Timings:</span> <?php echo $route['timings']; ?></p>
+    <p><span class="label">Driver:</span> <?php echo $route['driver_name'] ?? 'Not Assigned'; ?></p>
+    <p><span class="label">Bus No:</span> <?php echo $route['bus_number'] ?? 'N/A'; ?></p>
+  <?php else: ?>
+    <div class="alert alert-warning">Route not found.</div>
+  <?php endif; ?>
+</div>
+
+
+
+</html></body><script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>  <div style="margin-top:20px;">
+    <a href="index.php" class="btn btn-secondary">Back to Home</a>
+  </div>
+</div>
+
+</body>
+</html>
+
+_________________________
+
